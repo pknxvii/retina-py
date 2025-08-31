@@ -1,21 +1,18 @@
 from celery import Celery
 from celery.utils.log import get_task_logger
-from app.config import Config
+from app.config_loader import configuration
 from app.pipelines.indexing import run_indexing_pipeline
 import time
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 
 celery_app = Celery(
     "tasks", 
-    broker=Config.REDIS_URL,
-    backend=Config.REDIS_URL  #can use PostgreSQL/MySQL instead
+    broker=configuration["celery"]["broker_url"],
+    backend=configuration["celery"]["result_backend"]
 )
 
-# Load configuration
-celery_app.config_from_object('celery_config')
+# Configure celery from YAML
+celery_config = configuration["celery"]
+# celery_app.conf.update(key=value) #can be used to update celery config
 
 logger = get_task_logger(__name__)
 

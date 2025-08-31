@@ -1,7 +1,8 @@
 from celery.utils.log import get_task_logger
+import structlog
 
-logger = get_task_logger(__name__)
+logger = structlog.get_logger()
 
 def run_indexing_pipeline(doc_id: str, content: str):
     # TODO: setup Haystack pipeline
-    logger.info(f"Running indexing pipeline for doc {doc_id}")
+    logger.info(f"[Pipeline] Running indexing pipeline for doc {doc_id}")
