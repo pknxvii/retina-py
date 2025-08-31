@@ -1,0 +1,22 @@
+meta:
+  id: retina-rag-pipeline
+  version: "1.0.0"
+
+log:
+  level: DEBUG
+
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  url: redis://localhost:6379/0
+
+celery:
+  broker_url: redis://localhost:6379/0
+  result_backend: redis://localhost:6379/0
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  title: "Retina RAG Pipeline API"
+  debug: true
