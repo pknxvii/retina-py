@@ -45,8 +45,12 @@ class HaystackNativeConverters:
         return result["documents"]
 
 
-class NativeHaystackPipeline:
-    """Pipeline using native Haystack converters - Singleton implementation"""
+class HaystackPipelinesFactory:
+    """Multi-tenant Factory for Haystack pipelines - Singleton implementation
+    
+    This factory creates and manages separate Haystack pipelines for each organization,
+    enabling data isolation while sharing computational resources like ML models.
+    """
     
     _instance = None
     _initialized = False
@@ -61,7 +65,7 @@ class NativeHaystackPipeline:
         if not self._initialized:
             #self.logger = structlog.get_logger()
             self.logger = get_task_logger(__name__)
-            self.logger.info("[Native Pipeline] Initializing Multi-tenant Singleton instance")
+            self.logger.info("[Haystack Factory] Initializing Multi-tenant Pipelines Factory")
             
             # Multi-tenant storage: collections per organization
             self._document_stores = {}  # org_id -> QdrantDocumentStore
@@ -76,10 +80,10 @@ class NativeHaystackPipeline:
             }
             
             # Mark as initialized to prevent re-initialization
-            NativeHaystackPipeline._initialized = True
+            HaystackPipelinesFactory._initialized = True
         else:
             self.logger = get_task_logger(__name__)
-            self.logger.debug("[Native Pipeline] Returning existing Multi-tenant Singleton instance")
+            self.logger.debug("[Haystack Factory] Returning existing Multi-tenant Factory instance")
     
     def get_document_store(self, organization_id: str):
         """Get or create document store for a specific organization"""
@@ -88,7 +92,7 @@ class NativeHaystackPipeline:
             tenancy_config = configuration["tenancy"]
             collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
             
-            self.logger.info(f"[Native Pipeline] Creating document store for org: {organization_id}")
+            self.logger.info(f"[Haystack Factory] Creating document store for org: {organization_id}")
             self._document_stores[organization_id] = QdrantDocumentStore(
                 url=qdrant_config["url"],
                 index=collection_name,
@@ -102,11 +106,11 @@ class NativeHaystackPipeline:
     def get_processing_pipeline(self, organization_id: str):
         """Get or create processing pipeline for a specific organization"""
         if organization_id not in self._processing_pipelines:
-            self.logger.info(f"[Native Pipeline] Creating processing pipeline for org: {organization_id}")
+            self.logger.info(f"[Haystack Factory] Creating processing pipeline for org: {organization_id}")
             document_store = self.get_document_store(organization_id)
             self._processing_pipelines[organization_id] = self.create_processing_pipeline(document_store)
         else:
-            self.logger.info(f"[Native Pipeline] Reusing existing processing pipeline with id: {id(self._processing_pipelines[organization_id])} for org: {organization_id}")
+            self.logger.info(f"[Haystack Factory] Reusing existing processing pipeline with id: {id(self._processing_pipelines[organization_id])} for org: {organization_id}")
         return self._processing_pipelines[organization_id]
     
     @classmethod
@@ -234,15 +238,16 @@ class NativeHaystackPipeline:
         if not organization_id:
             raise ValueError("organization_id is required for multi-tenant indexing")
             
-        self.logger.info(f"[Native Pipeline] Starting indexing for {doc_id} (org: {organization_id}, user: {user_id})")
-        self.logger.info(f"[Native Pipeline] Object path: {object_path}")
+        self.logger.info(f"[Haystack Factory] Starting indexing for {doc_id} (org: {organization_id}, user: {user_id})")
+        self.logger.info(f"[Haystack Factory] Object path: {object_path}")
         
         try:
             # Step 1: Download from MinIO
-            self.logger.info(f"[Native Pipeline] Downloading file...")
+            self.logger.info(f"[Haystack Factory] Downloading file...")
             file_bytes = download_file(object_path)
-            self.logger.info(f"[Native Pipeline] Downloaded {len(file_bytes)} bytes")
+            self.logger.info(f"[Haystack Factory] Downloaded {len(file_bytes)} bytes")
             
+            #TODO: Can we run pipeline with file_bytes instead of temp file?
             # Step 2: Save to temporary file
             file_extension = Path(object_path).suffix.lower() or '.txt'
             with tempfile.NamedTemporaryFile(suffix=file_extension, delete=False) as temp_file:
@@ -252,7 +257,7 @@ class NativeHaystackPipeline:
             try:
                 # Step 3: Convert document using native converters
                 documents = self.convert_document(temp_file_path, doc_id, object_path)
-                self.logger.info(f"[Native Pipeline] Converted to {len(documents)} document(s)")
+                self.logger.info(f"[Haystack Factory] Converted to {len(documents)} document(s)")
                 
                 # Step 4: Process through organization-specific pipeline
                 if documents:
@@ -265,12 +270,12 @@ class NativeHaystackPipeline:
                             "organization_id": organization_id
                         })
                     
-                    self.logger.info(f"[Native Pipeline] Using processing pipeline for org: {organization_id}")
+                    self.logger.info(f"[Haystack Factory] Using processing pipeline for org: {organization_id}")
                     pipeline = self.get_processing_pipeline(organization_id)
                     result = pipeline.run({"cleaner": {"documents": documents}})
                     
                     documents_written = result.get("writer", {}).get("documents_written", 0)
-                    self.logger.info(f"[Native Pipeline] Indexed {documents_written} chunks")
+                    self.logger.info(f"[Haystack Factory] Indexed {documents_written} chunks")
                     
                     tenancy_config = configuration["tenancy"]
                     collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
@@ -283,7 +288,6 @@ class NativeHaystackPipeline:
                         "doc_type": self.detect_file_type(temp_file_path, object_path).value,
                         "documents_processed": len(documents),
                         "chunks_created": documents_written,
-                        "converter_used": "native_haystack",
                         "collection": collection_name,
                         "message": f"Successfully indexed {documents_written} chunks for organization {organization_id}"
                     }
@@ -300,6 +304,6 @@ class NativeHaystackPipeline:
                     os.unlink(temp_file_path)
                     
         except Exception as e:
-            self.logger.error(f"[Native Pipeline] Error processing {doc_id}: {e}")
+            self.logger.error(f"[Haystack Factory] Error processing {doc_id}: {e}")
             raise Exception(f"Failed to index document {doc_id}: {str(e)}")
 

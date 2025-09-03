@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, Request, HTTPException
 from app.dispatcher.celery_dispatcher import CeleryDispatcher
 from app.utils.id_generator import generate_doc_id
 from app.storage.minio_client import generate_presigned_upload_url, create_bucket, list_buckets
-from app.pipelines.indexing import NativeHaystackPipeline
+from app.pipelines.indexing import HaystackPipelinesFactory
 from app.config_loader import configuration
 
 router = APIRouter()
@@ -10,12 +10,12 @@ dispatcher = CeleryDispatcher()
 
 #TODO add pydantic model for the request response
 
-@router.get("/health")
+@router.get("/api/health")
 async def health():
     return {"status": "healthy"}
 
 
-@router.post("/generate-upload-url")
+@router.post("/api/generate-upload-url")
 async def generate_upload_url(request: Request):
     doc_id = generate_doc_id()
 
@@ -36,7 +36,7 @@ async def generate_upload_url(request: Request):
         "object_path": object_path,
     }
 
-@router.post("/index-doc")
+@router.post("/api/index-doc")
 async def index_doc(request: Request):
     """Called after client uploads file to MinIO."""
     headers = request.headers
@@ -50,7 +50,7 @@ async def index_doc(request: Request):
     dispatcher.dispatch("index_document", {"doc_id": doc_id, "object_path": object_path, "user_id": user_id, "organization_id": organization_id})
     return {"status": "Indexing dispatched", "doc_id": doc_id}
 
-@router.post("/create-bucket")
+@router.post("/api/create-bucket")
 async def create_organization_bucket(request: Request):
     """Create a MinIO bucket for an organization using organization ID from header."""
     headers = request.headers
@@ -89,18 +89,18 @@ async def create_organization_bucket(request: Request):
         "message": result["message"]
     }
 
-@router.get("/buckets")
+@router.get("/api/buckets")
 async def get_buckets():
     """List all available buckets in MinIO."""
     buckets = list_buckets()
     return {"buckets": buckets}
 
-@router.get("/organizations/stats")
+@router.get("/api/organizations/stats")
 async def get_organization_stats():
     """Get statistics about active organizations in the multi-tenant pipeline."""
-    pipeline = NativeHaystackPipeline()
-    stats = pipeline.get_organization_stats()
+    factory = HaystackPipelinesFactory()
+    stats = factory.get_organization_stats()
     return {
-        "pipeline_instance_id": NativeHaystackPipeline.get_instance_id(),
+        "factory_instance_id": HaystackPipelinesFactory.get_instance_id(),
         "multi_tenant_stats": stats
     }
