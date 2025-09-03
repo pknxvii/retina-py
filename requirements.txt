@@ -1,6 +1,23 @@
+# Core web framework and async processing
 fastapi==0.116.1
+uvicorn==0.32.1
+
+# Task queue and messaging
 celery==5.4.0
 redis==5.2.1
-uvicorn==0.32.1
-structlog==24.4.0
+
+# Configuration and logging
 PyYAML==6.0.2
+structlog==24.4.0
+
+# Object storage
+minio==7.2.10
+
+# Haystack AI and vector database
+haystack-ai==2.17.1
+sentence-transformers==3.4.0
+qdrant-haystack==9.2.0
+
+# Document processing (PDF and TXT only)
+pypdf==4.3.1                    # For PDF document conversion
+nltk==3.9.1                     # For text tokenization and splitting

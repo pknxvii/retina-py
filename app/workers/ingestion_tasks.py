@@ -1,8 +1,16 @@
 from celery import Celery
 from celery.utils.log import get_task_logger
 from app.config_loader import configuration
-from app.pipelines.indexing import run_indexing_pipeline
+from app.pipelines.indexing import NativeHaystackPipeline
 import time
+import multiprocessing
+
+# Fix for macOS fork issues with ML libraries
+if hasattr(multiprocessing, 'set_start_method'):
+    try:
+        multiprocessing.set_start_method('spawn', force=True)
+    except RuntimeError:
+        pass  # Already set
 
 celery_app = Celery(
     "tasks", 
@@ -10,30 +18,38 @@ celery_app = Celery(
     backend=configuration["celery"]["result_backend"]
 )
 
-# Configure celery from YAML
+# Configure celery from YAML and set worker pool to avoid fork issues
 celery_config = configuration["celery"]
-# celery_app.conf.update(key=value) #can be used to update celery config
+celery_app.conf.update(
+    worker_pool='solo',  # Use solo pool to avoid multiprocessing issues
+    worker_concurrency=1,  # Single worker to avoid conflicts
+    worker_prefetch_multiplier=1,  # Process one task at a time
+)
 
 logger = get_task_logger(__name__)
 
 @celery_app.task(bind=True)
 def index_document(self, payload: dict):
     # Use both logger and print for debugging
-    
+    logger.debug(f"[Celery] Indexing document with payload: {payload}")
     doc_id = payload["doc_id"]
-    content = payload["content"]
+    object_path = payload["object_path"]
+    doc_type = payload["doc_type"]
     
     logger.info(f"[Celery] Started indexing document {doc_id}")
-    logger.info(f"[Celery] Content length: {len(content)} characters")
+    logger.info(f"[Celery] Object path: {object_path}")
+    logger.info(f"[Celery] Document type: {doc_type}")
     
     try:
-        # Simulating some processing time
-        time.sleep(10)
-        run_indexing_pipeline(doc_id, content)
+        # Create pipeline instance and run indexing
+        pipeline = NativeHaystackPipeline()
+        instance_id = NativeHaystackPipeline.get_instance_id()
+        logger.info(f"[Celery] Using pipeline instance ID: {instance_id}")
+        
+        result = pipeline.run_indexing_pipeline(doc_id, object_path)
         
         logger.info(f"[Celery] Successfully indexed document {doc_id}")
         
-        result = {"status": "success", "doc_id": doc_id}
         return result
         
     except Exception as exc:

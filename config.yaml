@@ -15,8 +15,38 @@ celery:
   broker_url: redis://localhost:6379/0
   result_backend: redis://localhost:6379/0
 
+minio:
+  endpoint: "localhost:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "documents"
+  secure: false
+
 api:
   host: 0.0.0.0
   port: 8000
   title: "Retina RAG Pipeline API"
   debug: true
+
+# Qdrant vector database configuration
+qdrant:
+  url: "http://localhost:6333"
+  index: "retina_documents"
+  embedding_dim: 384  # dimension for sentence-transformers/all-MiniLM-L6-v2
+  recreate_index: false
+  return_embedding: true
+  wait_result_from_api: true
+
+# Haystack pipeline configuration
+haystack:
+  embedder:
+    model: "sentence-transformers/all-MiniLM-L6-v2"
+    progress_bar: false
+  splitter:
+    split_by: "word"
+    split_length: 200
+    split_overlap: 50
+  cleaner:
+    remove_empty_lines: true
+    remove_extra_whitespaces: true
+    remove_repeated_substrings: false
