@@ -37,6 +37,10 @@ qdrant:
   return_embedding: true
   wait_result_from_api: true
 
+# Multi-tenancy configuration
+tenancy:
+  organization_prefix: "org"  # Prefix for organization-specific resources (collections, buckets)
+
 # Haystack pipeline configuration
 haystack:
   embedder:

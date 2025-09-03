@@ -34,11 +34,11 @@ def index_document(self, payload: dict):
     logger.debug(f"[Celery] Indexing document with payload: {payload}")
     doc_id = payload["doc_id"]
     object_path = payload["object_path"]
-    doc_type = payload["doc_type"]
+    user_id = payload["user_id"]
+    organization_id = payload["organization_id"]
     
     logger.info(f"[Celery] Started indexing document {doc_id}")
     logger.info(f"[Celery] Object path: {object_path}")
-    logger.info(f"[Celery] Document type: {doc_type}")
     
     try:
         # Create pipeline instance and run indexing
@@ -46,7 +46,7 @@ def index_document(self, payload: dict):
         instance_id = NativeHaystackPipeline.get_instance_id()
         logger.info(f"[Celery] Using pipeline instance ID: {instance_id}")
         
-        result = pipeline.run_indexing_pipeline(doc_id, object_path)
+        result = pipeline.run_indexing_pipeline(doc_id, object_path, user_id, organization_id)
         
         logger.info(f"[Celery] Successfully indexed document {doc_id}")
         
