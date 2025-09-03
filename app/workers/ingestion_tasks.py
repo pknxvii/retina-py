@@ -1,7 +1,7 @@
 from celery import Celery
 from celery.utils.log import get_task_logger
 from app.config_loader import configuration
-from app.pipelines.indexing import NativeHaystackPipeline
+from app.pipelines.indexing import HaystackPipelinesFactory
 import time
 import multiprocessing
 
@@ -19,6 +19,7 @@ celery_app = Celery(
 )
 
 # Configure celery from YAML and set worker pool to avoid fork issues
+#TODO: Need to fix multiprocessing issues
 celery_config = configuration["celery"]
 celery_app.conf.update(
     worker_pool='solo',  # Use solo pool to avoid multiprocessing issues
@@ -34,19 +35,19 @@ def index_document(self, payload: dict):
     logger.debug(f"[Celery] Indexing document with payload: {payload}")
     doc_id = payload["doc_id"]
     object_path = payload["object_path"]
-    doc_type = payload["doc_type"]
+    user_id = payload["user_id"]
+    organization_id = payload["organization_id"]
     
     logger.info(f"[Celery] Started indexing document {doc_id}")
     logger.info(f"[Celery] Object path: {object_path}")
-    logger.info(f"[Celery] Document type: {doc_type}")
     
     try:
-        # Create pipeline instance and run indexing
-        pipeline = NativeHaystackPipeline()
-        instance_id = NativeHaystackPipeline.get_instance_id()
-        logger.info(f"[Celery] Using pipeline instance ID: {instance_id}")
+        # Create pipeline factory instance and run indexing
+        pipeline_factory = HaystackPipelinesFactory()
+        instance_id = HaystackPipelinesFactory.get_instance_id()
+        logger.info(f"[Celery] Using pipeline factory instance ID: {instance_id}")
         
-        result = pipeline.run_indexing_pipeline(doc_id, object_path)
+        result = pipeline_factory.run_indexing_pipeline(doc_id, object_path, user_id, organization_id)
         
         logger.info(f"[Celery] Successfully indexed document {doc_id}")
         
