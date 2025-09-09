@@ -1,106 +1,48 @@
-from fastapi import APIRouter, UploadFile, Request, HTTPException
-from app.dispatcher.celery_dispatcher import CeleryDispatcher
-from app.utils.id_generator import generate_doc_id
-from app.storage.minio_client import generate_presigned_upload_url, create_bucket, list_buckets
-from app.pipelines.indexing import HaystackPipelinesFactory
-from app.config_loader import configuration
+from fastapi import APIRouter, Request
+from app.api.controllers.health import HealthController
+from app.api.controllers.document import DocumentController
+from app.api.controllers.storage import StorageController
+from app.api.controllers.organization import OrganizationController
+from app.api.models.responses import (
+    HealthResponse, GenerateUploadUrlResponse, IndexDocResponse,
+    CreateBucketResponse, ListBucketsResponse, OrganizationStats
+)
 
 router = APIRouter()
-dispatcher = CeleryDispatcher()
 
-#TODO add pydantic model for the request response
+# Initialize controllers
+health_controller = HealthController()
+document_controller = DocumentController()
+storage_controller = StorageController()
+organization_controller = OrganizationController()
 
-@router.get("/api/health")
+@router.get("/api/health", response_model=HealthResponse)
 async def health():
-    return {"status": "healthy"}
+    """Health check endpoint."""
+    return health_controller.health_check()
 
 
-@router.post("/api/generate-upload-url")
+@router.post("/api/generate-upload-url", response_model=GenerateUploadUrlResponse)
 async def generate_upload_url(request: Request):
-    doc_id = generate_doc_id()
+    """Generate a pre-signed upload URL for document upload."""
+    return await document_controller.generate_upload_url(request)
 
-    header = request.headers
-    user_id = header.get("X-User-Id")
-    organization_id = header.get("X-Organization-Id")
-    
-    body = await request.json()
-    doc_type = body["doc_type"] #pdf, txt, etc.
-    object_name = f"{doc_id}.{doc_type}"
-    object_path = f"{organization_id}/{user_id}/{object_name}"
-
-    upload_url = generate_presigned_upload_url(object_name)
-
-    return {
-        "doc_id": doc_id,
-        "upload_url": upload_url,
-        "object_path": object_path,
-    }
-
-@router.post("/api/index-doc")
+@router.post("/api/index-doc", response_model=IndexDocResponse)
 async def index_doc(request: Request):
     """Called after client uploads file to MinIO."""
-    headers = request.headers
-    user_id = headers.get("X-User-Id")
-    organization_id = headers.get("X-Organization-Id")
-    
-    body = await request.json()
-    doc_id = body["doc_id"]
-    object_path = body["object_path"]
-    
-    dispatcher.dispatch("index_document", {"doc_id": doc_id, "object_path": object_path, "user_id": user_id, "organization_id": organization_id})
-    return {"status": "Indexing dispatched", "doc_id": doc_id}
+    return await document_controller.index_document(request)
 
-@router.post("/api/create-bucket")
+@router.post("/api/create-bucket", response_model=CreateBucketResponse)
 async def create_organization_bucket(request: Request):
     """Create a MinIO bucket for an organization using organization ID from header."""
-    headers = request.headers
-    organization_id = headers.get("X-Organization-Id")
-    
-    if not organization_id:
-        raise HTTPException(
-            status_code=400, 
-            detail="X-Organization-Id header is required"
-        )
-    
-    # Sanitize organization ID for bucket name (MinIO bucket names have restrictions)
-    tenancy_config = configuration["tenancy"]
-    org_prefix = tenancy_config["organization_prefix"]
-    bucket_name = f"{org_prefix}-{organization_id.lower().replace('_', '-').replace(' ', '-')}"
-    
-    # Validate bucket name (MinIO naming requirements)
-    if len(bucket_name) < 3 or len(bucket_name) > 63:
-        raise HTTPException(
-            status_code=400,
-            detail="Organization ID creates invalid bucket name (too short or too long)"
-        )
-    
-    result = create_bucket(bucket_name)
-    
-    if result["status"] == "error":
-        raise HTTPException(
-            status_code=500,
-            detail=result["message"]
-        )
-    
-    return {
-        "organization_id": organization_id,
-        "bucket_name": result["bucket_name"],
-        "status": result["status"],
-        "message": result["message"]
-    }
+    return await storage_controller.create_organization_bucket(request)
 
-@router.get("/api/buckets")
+@router.get("/api/buckets", response_model=ListBucketsResponse)
 async def get_buckets():
     """List all available buckets in MinIO."""
-    buckets = list_buckets()
-    return {"buckets": buckets}
+    return storage_controller.list_buckets()
 
-@router.get("/api/organizations/stats")
+@router.get("/api/organizations/stats", response_model=OrganizationStats)
 async def get_organization_stats():
     """Get statistics about active organizations in the multi-tenant pipeline."""
-    factory = HaystackPipelinesFactory()
-    stats = factory.get_organization_stats()
-    return {
-        "factory_instance_id": HaystackPipelinesFactory.get_instance_id(),
-        "multi_tenant_stats": stats
-    }
+    return organization_controller.get_organization_stats()
