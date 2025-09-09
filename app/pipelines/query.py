@@ -1,66 +1,17 @@
-import re
 from typing import List
-from haystack import Pipeline, component
+from haystack import Pipeline
 from haystack.components.routers import ConditionalRouter
 from haystack.components.joiners import DocumentJoiner
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from haystack.components.builders import PromptBuilder
-from haystack.dataclasses import Document
 
 # Qdrant retriever and embedder imports
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 from haystack.components.embedders import SentenceTransformersTextEmbedder
+
+# Import custom SQL components
+from app.pipelines.haystack_components import SQLGenerator, SQLQuery
 from app.storage.document_store_manager import DocumentStoreManager
-
-
-# ----------------------------------------------------------------------
-# SQL Generator Component - converts natural language to SQL
-# ----------------------------------------------------------------------
-@component
-class SQLGenerator:
-    def __init__(self, model: str, base_url: str, schema: str = ""):
-        self.llm = OllamaGenerator(model=model, url=base_url)
-        self.schema = schema
-
-    @component.output_types(sql=str)
-    def run(self, question: str) -> dict:
-        prompt = (
-            "You are a SQL expert. "
-            "Given the following database schema, generate ONE valid SQL query "
-            "to answer the user's question.\n\n"
-            f"Schema:\n{self.schema}\n\n"
-            f"Question: {question}\n\n"
-            "Return only the SQL inside ```sql ... ```."
-        )
-        reply = self.llm.run(prompt=prompt)["replies"][0]
-
-        # extract SQL from code fence
-        m = re.search(r"```sql\s+(.*?)```", reply, flags=re.S | re.I)
-        sql = m.group(1).strip() if m else ""
-        return {"sql": sql}
-
-
-# ----------------------------------------------------------------------
-# Simple SQL component wrapper (you can move this to app/utils/sql_client.py)
-# ----------------------------------------------------------------------
-import sqlite3
-
-@component
-class SQLQuery:
-    def __init__(self, conn_str: str):
-        self.conn_str = conn_str
-
-    @component.output_types(documents=list[Document])
-    def run(self, query: str):
-        """Run raw SQL string against DB and wrap results as Documents."""
-        with sqlite3.connect(self.conn_str) as conn:
-            cur = conn.execute(query)
-            cols = [c[0] for c in cur.description] if cur.description else []
-            rows = cur.fetchall()
-
-        # wrap as a haystack Document so it can flow into joiner
-        content = f"SQL Results:\nColumns: {cols}\nRows: {rows[:20]}"
-        return {"documents": [Document(content=content)]}
 
 
 class QueryPipeline:
