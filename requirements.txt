@@ -17,6 +17,7 @@ minio==7.2.10
 haystack-ai==2.17.1
 sentence-transformers==3.4.0
 qdrant-haystack==9.2.0
+ollama-haystack==5.1.0
 
 # Document processing (PDF and TXT only)
 pypdf==4.3.1                    # For PDF document conversion

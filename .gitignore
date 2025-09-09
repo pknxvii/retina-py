@@ -195,7 +195,6 @@ documents/
 indexed_docs/
 
 # Model artifacts
-models/
 *.pkl
 *.joblib
 *.h5
