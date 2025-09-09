@@ -3,11 +3,12 @@ from app.api.controllers.health import HealthController
 from app.api.controllers.document import DocumentController
 from app.api.controllers.storage import StorageController
 from app.api.controllers.organization import OrganizationController
+from app.api.controllers.query import QueryController
+from app.api.models.requests import QueryRequest
 from app.api.models.responses import (
     HealthResponse, GenerateUploadUrlResponse, IndexDocResponse,
-    CreateBucketResponse, ListBucketsResponse, OrganizationStats
+    CreateBucketResponse, ListBucketsResponse, OrganizationStats, QueryResponse
 )
-
 router = APIRouter()
 
 # Initialize controllers
@@ -15,12 +16,17 @@ health_controller = HealthController()
 document_controller = DocumentController()
 storage_controller = StorageController()
 organization_controller = OrganizationController()
+query_controller = QueryController()
+
+@router.post("/api/query", response_model=QueryResponse)
+async def execute_query(request: Request, request_data: QueryRequest):
+    """Execute a query against specified targets."""
+    return await query_controller.execute_query(request, request_data)
 
 @router.get("/api/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint."""
     return health_controller.health_check()
-
 
 @router.post("/api/generate-upload-url", response_model=GenerateUploadUrlResponse)
 async def generate_upload_url(request: Request):

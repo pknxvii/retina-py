@@ -19,7 +19,8 @@ from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
-from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+
+from app.storage.document_store_manager import DocumentStoreManager
 
 class DocumentType(Enum):
     """Supported document types with native Haystack converters"""
@@ -87,21 +88,11 @@ class HaystackPipelinesFactory:
     
     def get_document_store(self, organization_id: str):
         """Get or create document store for a specific organization"""
-        if organization_id not in self._document_stores:
-            qdrant_config = configuration["qdrant"]
-            tenancy_config = configuration["tenancy"]
-            collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
-            
-            self.logger.info(f"[Haystack Factory] Creating document store for org: {organization_id}")
-            self._document_stores[organization_id] = QdrantDocumentStore(
-                url=qdrant_config["url"],
-                index=collection_name,
-                embedding_dim=qdrant_config["embedding_dim"],
-                recreate_index=qdrant_config["recreate_index"],
-                return_embedding=qdrant_config["return_embedding"],
-                wait_result_from_api=qdrant_config["wait_result_from_api"]
-            )
-        return self._document_stores[organization_id]
+        # Delegate to the shared DocumentStoreManager for consistency
+        store_manager = DocumentStoreManager()
+        
+        self.logger.info(f"[Haystack Factory] Getting document store for org: {organization_id}")
+        return store_manager.get_document_store(organization_id)
     
     def get_processing_pipeline(self, organization_id: str):
         """Get or create processing pipeline for a specific organization"""
@@ -122,10 +113,14 @@ class HaystackPipelinesFactory:
     
     def get_organization_stats(self):
         """Get statistics about active organizations"""
+        store_manager = DocumentStoreManager()
+        store_stats = store_manager.get_stats()
+        
         return {
-            "total_organizations": len(self._document_stores),
-            "organizations": list(self._document_stores.keys()),
-            "active_pipelines": len(self._processing_pipelines)
+            "total_organizations": store_stats["total_organizations"],
+            "organizations": store_stats["organizations"],
+            "active_pipelines": len(self._processing_pipelines),
+            "document_store_manager_id": store_stats["manager_instance_id"]
         }
     
     def detect_file_type(self, file_path: str, object_path: str) -> DocumentType:
