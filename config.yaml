@@ -62,22 +62,33 @@ llm:
 
 # Database configuration for SQL queries
 database:
-  connection_string: ""  # SQL connection string
+  connection_string: "test.db"  # SQLite database path
   schema: |
-    -- Add your database schema here for SQL generation
-    -- Example:
-    -- CREATE TABLE customers (
-    --   id INTEGER PRIMARY KEY,
-    --   name TEXT,
-    --   email TEXT,
-    --   revenue DECIMAL
-    -- );
-    -- CREATE TABLE orders (
-    --   id INTEGER PRIMARY KEY,
-    --   customer_id INTEGER,
-    --   amount DECIMAL,
-    --   date DATE
-    -- );
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      age INTEGER,
+      email TEXT,
+      city TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE orders (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER,
+      product_name TEXT,
+      amount DECIMAL(10,2),
+      order_date DATE,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    
+    CREATE TABLE products (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      price DECIMAL(10,2),
+      category TEXT,
+      in_stock BOOLEAN
+    );
 
 # Query pipeline configuration
 query:
