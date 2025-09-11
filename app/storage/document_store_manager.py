@@ -6,6 +6,8 @@ for multi-tenant applications, avoiding tight coupling between indexing and quer
 """
 from typing import Dict
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+from qdrant_client import QdrantClient
+from qdrant_client.http import models as rest
 from app.config_loader import configuration
 
 
@@ -80,6 +82,84 @@ class DocumentStoreManager:
             "organizations": list(self._document_stores.keys()),
             "manager_instance_id": id(self)
         }
+    
+    def create_collection(self, organization_id: str) -> dict:
+        """
+        Create a Qdrant collection for an organization.
+        
+        Args:
+            organization_id: The organization identifier
+            
+        Returns:
+            Dictionary with creation status and details
+        """
+        tenancy_config = self._config["tenancy"]
+        collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
+        
+        try:
+            # Get or create document store (this will create collection if needed)
+            document_store = self.get_document_store(organization_id)
+            
+            # Check if collection exists and get info
+            try:
+                collection_info = document_store._client.get_collection(collection_name)
+                return {
+                    "success": True,
+                    "message": f"Collection {collection_name} already exists",
+                    "collection_name": collection_name,
+                    "organization_id": organization_id,
+                    "points_count": collection_info.points_count,
+                    "vectors_count": collection_info.vectors_count,
+                    "status": collection_info.status.name if hasattr(collection_info.status, 'name') else str(collection_info.status)
+                }
+            except Exception as e:
+                # Collection doesn't exist, create it using direct Qdrant client
+                qdrant_config = self._config["qdrant"]
+                client = QdrantClient(url=qdrant_config["url"])
+                
+                # Create collection directly
+                try:
+                    client.create_collection(
+                        collection_name=collection_name,
+                        vectors_config=rest.VectorParams(
+                            size=qdrant_config["embedding_dim"],
+                            distance=rest.Distance.COSINE
+                        )
+                    )
+                except Exception as create_error:
+                    # If collection already exists, that's fine - check if it actually exists
+                    if "already exists" in str(create_error):
+                        # Collection exists, get its info
+                        collection_info = client.get_collection(collection_name)
+                        return {
+                            "success": True,
+                            "message": f"Collection {collection_name} already exists",
+                            "collection_name": collection_name,
+                            "organization_id": organization_id,
+                            "points_count": collection_info.points_count,
+                            "vectors_count": collection_info.vectors_count,
+                            "status": collection_info.status.name if hasattr(collection_info.status, 'name') else str(collection_info.status)
+                        }
+                    else:
+                        raise create_error
+                return {
+                    "success": True,
+                    "message": f"Collection {collection_name} created successfully",
+                    "collection_name": collection_name,
+                    "organization_id": organization_id,
+                    "points_count": 0,
+                    "vectors_count": 0,
+                    "status": "created"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Failed to create collection {collection_name}: {str(e)}",
+                "collection_name": collection_name,
+                "organization_id": organization_id,
+                "error": str(e)
+            }
     
     def remove_document_store(self, organization_id: str) -> bool:
         """

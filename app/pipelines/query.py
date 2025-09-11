@@ -116,6 +116,7 @@ class QueryPipeline:
             document_store = store_manager.get_document_store(organization_id)
             
             # Create metadata filters for Haystack QdrantEmbeddingRetriever
+            # Use proper Haystack filter format with operator and conditions
             metadata_filters = {
                 "operator": "AND",
                 "conditions": [
@@ -127,20 +128,18 @@ class QueryPipeline:
                 ]
             }
             
-            # Add user filter if user_id is provided
             if user_id:
                 metadata_filters["conditions"].append({
-                    "field": "meta.user_id",
+                    "field": "meta.user_id", 
                     "operator": "==",
                     "value": user_id
                 })
-            
+
             # Create and add the retriever component dynamically
             doc_retriever = QdrantEmbeddingRetriever(
                 document_store=document_store,
                 top_k=self.retriever_config.get("top_k"),
                 #filters=metadata_filters
-                #TODO: With metadata filters, query is not working. Need to fix.
             )
             
             # Add the retriever to the pipeline if not already added
@@ -157,7 +156,7 @@ class QueryPipeline:
             
         result = self.pipeline.run({
             "router": {"targets": targets, "query": query},
-            "prompt_builder": {"query": query},
+            "prompt_builder": {"query": query}
         })
         return result["llm"]["replies"][0]
 

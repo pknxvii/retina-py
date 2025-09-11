@@ -7,7 +7,8 @@ from app.api.controllers.query import QueryController
 from app.api.models.requests import QueryRequest
 from app.api.models.responses import (
     HealthResponse, GenerateUploadUrlResponse, IndexDocResponse,
-    CreateBucketResponse, ListBucketsResponse, OrganizationStats, QueryResponse
+    CreateBucketResponse, ListBucketsResponse, OrganizationStats, 
+    QueryResponse, CreateCollectionResponse
 )
 router = APIRouter()
 
@@ -52,3 +53,8 @@ async def get_buckets():
 async def get_organization_stats():
     """Get statistics about active organizations in the multi-tenant pipeline."""
     return organization_controller.get_organization_stats()
+
+@router.post("/api/organizations/create-collection", response_model=CreateCollectionResponse)
+async def create_organization_collection(request: Request):
+    """Create a Qdrant collection for an organization using organization ID from header."""
+    return organization_controller.create_collection(request)
