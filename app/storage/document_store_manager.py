@@ -62,6 +62,32 @@ class DocumentStoreManager:
         tenancy_config = self._config["tenancy"]
         collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
         
+        # Check if auto collection creation is disabled
+        auto_create = qdrant_config.get("auto_create_collection", True)
+        
+        if not auto_create:
+            # Verify collection exists before creating document store
+            client = QdrantClient(url=qdrant_config["url"])
+            try:
+                # Check if collection exists
+                collections = client.get_collections()
+                collection_exists = any(
+                    collection.name == collection_name 
+                    for collection in collections.collections
+                )
+                
+                if not collection_exists:
+                    raise ValueError(
+                        f"Collection '{collection_name}' does not exist."
+                    )
+            except Exception as e:
+                if "does not exist" in str(e) or "Collection" in str(e):
+                    raise ValueError(
+                        f"Collection '{collection_name}' does not exist."
+                    )
+                # Re-raise other exceptions
+                raise
+        
         return QdrantDocumentStore(
             url=qdrant_config["url"],
             index=collection_name,
