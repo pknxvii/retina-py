@@ -62,7 +62,7 @@ llm:
 
 # Database configuration for SQL queries
 database:
-  connection_string: "/path/to/your.db"  # SQLite database path
+  connection_string: ""  # SQL connection string
   schema: |
     -- Add your database schema here for SQL generation
     -- Example:

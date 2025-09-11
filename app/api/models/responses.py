@@ -45,3 +45,14 @@ class CreateBucketResponse(BaseModel):
 class OrganizationStats(BaseModel):
     factory_instance_id: str = Field(..., description="Factory instance ID")
     multi_tenant_stats: Dict[str, Any] = Field(default_factory=dict, description="Multi-tenant statistics")
+
+
+class CreateCollectionResponse(BaseModel):
+    success: bool = Field(..., description="Whether the collection creation was successful")
+    message: str = Field(..., description="Status message")
+    collection_name: str = Field(..., description="Name of the Qdrant collection")
+    organization_id: str = Field(..., description="Organization ID")
+    points_count: Optional[int] = Field(None, description="Number of points in the collection")
+    vectors_count: Optional[int] = Field(None, description="Number of vectors in the collection")
+    status: Optional[str] = Field(None, description="Collection status")
+    error: Optional[str] = Field(None, description="Error message if creation failed")
