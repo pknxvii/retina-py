@@ -200,64 +200,6 @@ class DocumentStoreManager:
                 "error": str(e)
             }
     
-    def create_collection_manually(self, organization_id: str) -> dict:
-        """
-        Manually create a Qdrant collection for an organization, bypassing the auto_create_collection setting.
-        This method is useful when auto_create_collection is disabled but you need to create a collection.
-        
-        Args:
-            organization_id: The organization identifier
-            
-        Returns:
-            Dictionary with creation status and details
-        """
-        tenancy_config = self._config["tenancy"]
-        qdrant_config = self._config["qdrant"]
-        collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
-        
-        try:
-            client = QdrantClient(url=qdrant_config["url"])
-            
-            # Check if collection already exists
-            try:
-                collection_info = client.get_collection(collection_name)
-                return {
-                    "success": True,
-                    "message": f"Collection {collection_name} already exists",
-                    "collection_name": collection_name,
-                    "organization_id": organization_id,
-                    "points_count": collection_info.points_count,
-                    "vectors_count": collection_info.vectors_count,
-                    "status": collection_info.status.name if hasattr(collection_info.status, 'name') else str(collection_info.status)
-                }
-            except Exception:
-                # Collection doesn't exist, create it
-                client.create_collection(
-                    collection_name=collection_name,
-                    vectors_config=rest.VectorParams(
-                        size=qdrant_config["embedding_dim"],
-                        distance=rest.Distance.COSINE
-                    )
-                )
-                return {
-                    "success": True,
-                    "message": f"Collection {collection_name} created successfully",
-                    "collection_name": collection_name,
-                    "organization_id": organization_id,
-                    "points_count": 0,
-                    "vectors_count": 0,
-                    "status": "created"
-                }
-                
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"Failed to create collection {collection_name}: {str(e)}",
-                "collection_name": collection_name,
-                "organization_id": organization_id,
-                "error": str(e)
-            }
-    
     def remove_document_store(self, organization_id: str) -> bool:
         """
         Remove document store for an organization (useful for cleanup).
