@@ -33,6 +33,10 @@ class DocumentStoreManager:
             self._config = configuration
             DocumentStoreManager._initialized = True
     
+    def _is_auto_create_enabled(self) -> bool:
+        """Check if auto collection creation is enabled."""
+        return self._config["qdrant"].get("auto_create_collection", True)
+    
     def get_document_store(self, organization_id: str) -> QdrantDocumentStore:
         """
         Get or create a document store for the specified organization.
@@ -63,9 +67,7 @@ class DocumentStoreManager:
         collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
         
         # Check if auto collection creation is disabled
-        auto_create = qdrant_config.get("auto_create_collection", True)
-        
-        if not auto_create:
+        if not self._is_auto_create_enabled():
             # Verify collection exists before creating document store
             client = QdrantClient(url=qdrant_config["url"])
             try:
@@ -120,15 +122,16 @@ class DocumentStoreManager:
             Dictionary with creation status and details
         """
         tenancy_config = self._config["tenancy"]
+        qdrant_config = self._config["qdrant"]
         collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
         
         try:
-            # Get or create document store (this will create collection if needed)
-            document_store = self.get_document_store(organization_id)
+            # Create collection directly using Qdrant client first
+            client = QdrantClient(url=qdrant_config["url"])
             
-            # Check if collection exists and get info
+            # Check if collection already exists
             try:
-                collection_info = document_store._client.get_collection(collection_name)
+                collection_info = client.get_collection(collection_name)
                 return {
                     "success": True,
                     "message": f"Collection {collection_name} already exists",
@@ -138,12 +141,8 @@ class DocumentStoreManager:
                     "vectors_count": collection_info.vectors_count,
                     "status": collection_info.status.name if hasattr(collection_info.status, 'name') else str(collection_info.status)
                 }
-            except Exception as e:
-                # Collection doesn't exist, create it using direct Qdrant client
-                qdrant_config = self._config["qdrant"]
-                client = QdrantClient(url=qdrant_config["url"])
-                
-                # Create collection directly
+            except Exception:
+                # Collection doesn't exist, create it
                 try:
                     client.create_collection(
                         collection_name=collection_name,
@@ -152,10 +151,18 @@ class DocumentStoreManager:
                             distance=rest.Distance.COSINE
                         )
                     )
+                    return {
+                        "success": True,
+                        "message": f"Collection {collection_name} created successfully",
+                        "collection_name": collection_name,
+                        "organization_id": organization_id,
+                        "points_count": 0,
+                        "vectors_count": 0,
+                        "status": "created"
+                    }
                 except Exception as create_error:
-                    # If collection already exists, that's fine - check if it actually exists
+                    # If collection already exists, that's fine
                     if "already exists" in str(create_error):
-                        # Collection exists, get its info
                         collection_info = client.get_collection(collection_name)
                         return {
                             "success": True,
@@ -168,15 +175,7 @@ class DocumentStoreManager:
                         }
                     else:
                         raise create_error
-                return {
-                    "success": True,
-                    "message": f"Collection {collection_name} created successfully",
-                    "collection_name": collection_name,
-                    "organization_id": organization_id,
-                    "points_count": 0,
-                    "vectors_count": 0,
-                    "status": "created"
-                }
+            
                 
         except Exception as e:
             return {
