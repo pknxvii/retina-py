@@ -45,6 +45,37 @@
 			"response": []
 		},
 		{
+			"name": "http://localhost:8000/api/organizations/create-collection",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Organization-Id",
+						"value": "void-kernel"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8000/api/organizations/create-collection",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"organizations",
+						"create-collection"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST \"http://localhost:8000/api/organizations/create-collection\" -H \"Content-Type: application/json\" -H \"X-Organization-Id: void-kernel\""
+			},
+			"response": []
+		},
+		{
 			"name": "http://localhost:8000/api/index-doc",
 			"request": {
 				"method": "POST",
@@ -103,12 +134,12 @@
 					},
 					{
 						"key": "X-User-Id",
-						"value": "preetamahak"
+						"value": "preetamnahak"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"query\": \"What is the MFCentral API integration process?\",\n    \"targets\": [\"docstore\"]\n  }",
+					"raw": "{\n    \"query\": \"how can we use webhooks with snapmint?\",\n    \"targets\": [\"docstore\"]\n  }",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -126,8 +157,7 @@
 						"api",
 						"query"
 					]
-				},
-				"description": "Generated from cURL: curl -X POST \"http://localhost:8000/api/query\" \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-Organization-Id: void-kernel\" \\\n  -H \"X-User-Id: preetamahak\" \\\n  -d '{\n    \"query\": \"What is the MFCentral API integration process?\",\n    \"targets\": [\"docstore\"]\n  }'"
+				}
 			},
 			"response": []
 		}
