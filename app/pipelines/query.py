@@ -66,7 +66,11 @@ class QueryPipeline:
             base_url=self.llm_config["base_url"],
             schema=db_schema
         )
-        sql_exec = SQLQuery(conn_str=db_conn_str)
+        sql_exec = SQLQuery(
+            conn_str=db_conn_str,
+            llm_model=self.llm_config["model"],
+            llm_base_url=self.llm_config["base_url"]
+        )
         pipe.add_component("sql_generator", sql_generator)
         pipe.add_component("sql_exec", sql_exec)
 
