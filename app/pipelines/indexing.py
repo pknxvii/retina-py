@@ -46,7 +46,7 @@ class HaystackNativeConverters:
         return result["documents"]
 
 
-class HaystackPipelinesFactory:
+class IndexingPipelinesFactory:
     """Multi-tenant Factory for Haystack pipelines - Singleton implementation
     
     This factory creates and manages separate Haystack pipelines for each organization,
@@ -81,7 +81,7 @@ class HaystackPipelinesFactory:
             }
             
             # Mark as initialized to prevent re-initialization
-            HaystackPipelinesFactory._initialized = True
+            IndexingPipelinesFactory._initialized = True
         else:
             self.logger = get_task_logger(__name__)
             self.logger.debug("[Haystack Factory] Returning existing Multi-tenant Factory instance")

@@ -1,7 +1,7 @@
 from celery import Celery
 from celery.utils.log import get_task_logger
 from app.config_loader import configuration
-from app.pipelines.indexing import HaystackPipelinesFactory
+from app.pipelines.indexing import IndexingPipelinesFactory
 import time
 import multiprocessing
 
@@ -43,8 +43,8 @@ def index_document(self, payload: dict):
     
     try:
         # Create pipeline factory instance and run indexing
-        pipeline_factory = HaystackPipelinesFactory()
-        instance_id = HaystackPipelinesFactory.get_instance_id()
+        pipeline_factory = IndexingPipelinesFactory()
+        instance_id = IndexingPipelinesFactory.get_instance_id()
         logger.info(f"[Celery] Using pipeline factory instance ID: {instance_id}")
         
         result = pipeline_factory.run_indexing_pipeline(doc_id, object_path, user_id, organization_id)
