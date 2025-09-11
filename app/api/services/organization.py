@@ -1,4 +1,4 @@
-from app.pipelines.indexing import HaystackPipelinesFactory
+from app.pipelines.indexing import IndexingPipelinesFactory
 from app.pipelines.query import QueryPipelinesFactory
 from app.storage.document_store_manager import DocumentStoreManager
 from app.api.models.responses import OrganizationStats, CreateCollectionResponse
@@ -13,7 +13,7 @@ class OrganizationService:
     def get_organization_stats(self) -> OrganizationStats:
         """Get statistics about active organizations in the multi-tenant pipeline."""
         # Get indexing pipeline stats
-        indexing_factory = HaystackPipelinesFactory()
+        indexing_factory = IndexingPipelinesFactory()
         indexing_stats = indexing_factory.get_organization_stats()
         
         # Get query pipeline stats
@@ -27,7 +27,7 @@ class OrganizationService:
         }
         
         return OrganizationStats(
-            factory_instance_id=str(HaystackPipelinesFactory.get_instance_id()),
+            factory_instance_id=str(IndexingPipelinesFactory.get_instance_id()),
             multi_tenant_stats=combined_stats
         )
     
