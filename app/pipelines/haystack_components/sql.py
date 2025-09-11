@@ -61,13 +61,13 @@ class SQLSafetyValidator:
         if not rule_based_result[0]:
             return rule_based_result
         
-        # If LLM is available, use it for more sophisticated analysis
         if self.use_llm:
-            return self._llm_based_safety_check(query)
+            llm_result = self._llm_based_safety_check(query)
+            if not llm_result[0]:
+                return llm_result
         
-        # If no LLM, rely on rule-based checks only
-        return rule_based_result
-    
+        return True, "Query passed both rule-based and LLM safety checks"
+
     def _rule_based_safety_check(self, query: str) -> tuple[bool, str]:
         """
         Perform rule-based safety validation using patterns and keywords.
@@ -112,53 +112,46 @@ class SQLSafetyValidator:
         Returns:
             Tuple of (is_safe: bool, reason: str)
         """
-        safety_prompt = f"""
-        You are a SQL security expert analyzing queries for a read-only reporting system.
+        safety_prompt = f"""Analyze this SQL query and classify it as SAFE or UNSAFE.
 
-        CLASSIFICATION RULES:
-        SAFE queries - READ-ONLY operations that do NOT modify data or schema:
-        - SELECT statements (including JOINs, subqueries, aggregations, window functions)
-        - WITH clauses (Common Table Expressions)
-        - SHOW, DESCRIBE, DESC commands
-        - EXPLAIN, EXPLAIN QUERY PLAN statements
-        - PRAGMA read-only operations
+        SAFE = Only reads data (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, PRAGMA)
+        UNSAFE = Modifies data/schema (INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, TRUNCATE) or SQL injection
 
-        UNSAFE queries - ANYTHING that modifies data or schema:
-        - INSERT, UPDATE, DELETE statements
-        - CREATE, DROP, ALTER statements (tables, indexes, etc.)
-        - TRUNCATE, REPLACE statements
-        - Multiple statements separated by semicolons
-        - SQL injection patterns (like '; DROP TABLE, UNION attacks)
-        - Stored procedure calls (EXEC, EXECUTE)
+        Query: {query}
 
-        IMPORTANT CONTEXT:
-        - Keywords like "UPDATE", "DELETE", "CREATE" appearing in string literals or column names are SAFE
-        - Complex SELECT queries with JOINs and aggregations are SAFE
-        - Subqueries and CTEs are SAFE as long as they only use SELECT
-        - Performance is not a safety concern - focus only on data/schema modification
+        Rules:
+        - String literals with keywords are SAFE (e.g., WHERE name = 'UPDATE' is SAFE)
+        - Only actual SQL commands are UNSAFE (e.g., UPDATE table SET... is UNSAFE)
+        - Complex SELECTs with JOINs are SAFE
+        - Multiple statements with semicolons are UNSAFE
 
-        SQL Query to analyze:
-        ```sql
-        {query}
-        ```
-
-        Respond with EXACTLY:
-        "SAFE: [reason]" OR "UNSAFE: [reason]"
-
-        Response:"""
+        Respond with exactly one of these:
+        SAFE: [brief reason]
+        UNSAFE: [brief reason]"""
 
         try:
             response = self.llm.run(prompt=safety_prompt)["replies"][0].strip()
             
-            if response.startswith("SAFE:"):
-                reason = response[5:].strip()
+            # Check if response starts with SAFE or UNSAFE (case insensitive)
+            response_upper = response.upper()
+            
+            if response_upper.startswith("SAFE"):
+                # Extract reason after colon if present
+                if ":" in response:
+                    reason = response.split(":", 1)[1].strip()
+                else:
+                    reason = "LLM classified as safe"
                 return True, f"LLM validation passed: {reason}"
-            elif response.startswith("UNSAFE:"):
-                reason = response[7:].strip()
+            elif response_upper.startswith("UNSAFE"):
+                # Extract reason after colon if present
+                if ":" in response:
+                    reason = response.split(":", 1)[1].strip()
+                else:
+                    reason = "LLM classified as unsafe"
                 return False, f"LLM validation failed: {reason}"
             else:
-                # If LLM doesn't respond in expected format, be conservative
-                return False, f"LLM validation inconclusive: {response}"
+                # If LLM doesn't respond clearly, fall back to rule-based
+                return self._rule_based_safety_check(query)
                 
         except Exception as e:
             # If LLM fails, fall back to rule-based validation
@@ -189,27 +182,43 @@ class SQLSafetyValidator:
     
     def _check_sql_injection_patterns(self, query: str) -> bool:
         """Check for common SQL injection patterns."""
-        # Remove string literals first to avoid false positives
-        query_without_strings = re.sub(r"'[^']*'", " 'STRING' ", query)
-        query_without_strings = re.sub(r'"[^"]*"', ' "STRING" ', query_without_strings)
         
-        injection_patterns = [
+        # Patterns that work on the original query (looking for quote patterns)
+        quote_based_patterns = [
             r"'\s*OR\s*'",  # ' OR ' (string concatenation)
-            r"'\s*AND\s*'",  # ' AND ' (string concatenation)
-            r"'\s*;\s*",  # '; (semicolon after quote)
+            r"'\s*AND\s*'",  # ' AND ' (string concatenation)  
             r"'\s*OR\s+1\s*=\s*1",  # ' OR 1=1
             r"'\s*OR\s+TRUE",  # ' OR TRUE  
             r"'\s*OR\s+'[^']*'\s*=\s*'[^']*'",  # ' OR 'a'='a'
-            r"0\s*=\s*0",  # 0=0 (always true)
-            r"NULL\s*IS\s*NULL",  # NULL IS NULL (always true)
-            # UNION injection - but exclude legitimate CTEs by checking context
-            r"[;]\s*UNION\s+(ALL\s+)?SELECT",  # ; UNION (ALL) SELECT - semicolon separated injection
             r"'\s*UNION\s+(ALL\s+)?SELECT",  # ' UNION (ALL) SELECT - string break injection
+            # Semicolon injection patterns
+            r"';\s*DROP",  # '; DROP
+            r"';\s*DELETE",  # '; DELETE
+            r"';\s*UPDATE",  # '; UPDATE
+            r"';\s*INSERT",  # '; INSERT
         ]
         
-        for pattern in injection_patterns:
+        # Check quote-based patterns on original query
+        for pattern in quote_based_patterns:
+            if re.search(pattern, query, re.IGNORECASE):
+                return True
+        
+        # Remove string literals for other patterns
+        query_without_strings = re.sub(r"'[^']*'", " 'STRING' ", query)
+        query_without_strings = re.sub(r'"[^"]*"', ' "STRING" ', query_without_strings)
+        
+        # Patterns that work on query without string literals
+        non_quote_patterns = [
+            r"0\s*=\s*0",  # 0=0 (always true)
+            r"NULL\s*IS\s*NULL",  # NULL IS NULL (always true)
+            r"[;]\s*UNION\s+(ALL\s+)?SELECT",  # ; UNION (ALL) SELECT - semicolon separated injection
+        ]
+        
+        # Check non-quote patterns on cleaned query
+        for pattern in non_quote_patterns:
             if re.search(pattern, query_without_strings, re.IGNORECASE):
                 return True
+                
         return False
 
 
