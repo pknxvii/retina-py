@@ -120,20 +120,7 @@ class DocumentStoreManager:
             Dictionary with creation status and details
         """
         tenancy_config = self._config["tenancy"]
-        qdrant_config = self._config["qdrant"]
         collection_name = f"{tenancy_config['organization_prefix']}-{organization_id}"
-        
-        # Check if auto collection creation is disabled
-        auto_create = qdrant_config.get("auto_create_collection", True)
-        
-        if not auto_create:
-            return {
-                "success": False,
-                "message": f"Collection creation is disabled. auto_create_collection is set to false.",
-                "collection_name": collection_name,
-                "organization_id": organization_id,
-                "error": "Collection auto-creation is disabled in configuration"
-            }
         
         try:
             # Get or create document store (this will create collection if needed)
